@@ -1,0 +1,17 @@
+body {
+    background:#303030;
+}
+
+.content {
+    padding:20px;
+    background:#fff;
+    min-height:300px;
+    margin-top:20px;
+}
+
+#treemap {
+    height:300px;
+}
+
+
+
