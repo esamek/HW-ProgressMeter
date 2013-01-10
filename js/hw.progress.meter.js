@@ -8,76 +8,102 @@ var HWColor = HWColor || {};
 
 
 
-var p,$meter,outer,inner;
 
 
 
-Raphael.el.s = function(){
-	this.attr({'stroke-color':'#ccc'});
-};
+function getArcPath(cx,cy,r,startAngle,endAngle,progressWidth){
 
+    var rad = Math.PI / 180;
 
-function arc(cx, cy, r, startAngle, endAngle, progressWidth){
-	var rad = Math.PI / 180,
-        x1 = cx + r * Math.cos(-startAngle * rad),
-        x2 = cx + r * Math.cos(-endAngle * rad),
-        xm = cx + r / 2 * Math.cos(-(startAngle + (endAngle - startAngle) / 2) * rad),
-        y1 = cy + r * Math.sin(-startAngle * rad),
-        y2 = cy + r * Math.sin(-endAngle * rad),
-        ym = cy + r / 2 * Math.sin(-(startAngle + (endAngle - startAngle) / 2) * rad);
+    var arc1 = {
+        x1: cx + r * Math.cos(-startAngle * rad),
+        x2: cx + r * Math.cos(-endAngle * rad),
+        xm: cx + r / 2 * Math.cos(-(startAngle + (endAngle - startAngle) / 2) * rad),
+        y1: cy + r * Math.sin(-startAngle * rad),
+        y2: cy + r * Math.sin(-endAngle * rad),
+        ym: cy + r / 2 * Math.sin(-(startAngle + (endAngle - startAngle) / 2) * rad)
+    };
+
+    var r2 = r - progressWidth;
+
+    var arc2 = {
+        x1: cx + r2 * Math.cos(-startAngle * rad),
+        x2: cx + r2 * Math.cos(-endAngle * rad),
+        xm: cx + r2 / 2 * Math.cos(-(startAngle + (endAngle - startAngle) / 2) * rad),
+        y1: cy + r2 * Math.sin(-startAngle * rad),
+        y2: cy + r2 * Math.sin(-endAngle * rad),
+        ym: cy + r2 / 2 * Math.sin(-(startAngle + (endAngle - startAngle) / 2) * rad)
+    };
+
 
     var res = [
-            "M", cx, cy,
-            "L", x1, y1,
-            "A", r, r, 0, +(Math.abs(endAngle - startAngle) > 180), 0, x2, y2,
-            "z"
-        ];
-
-    res.middle = { x: xm, y: ym };
+        "M", arc1.x2, arc1.y2,
+        "L", arc2.x2, arc2.y2,
+        "A", r2, r2, 0, +(Math.abs(endAngle - startAngle) > 180), 1, arc2.x1, arc2.y1,
+        "L", arc1.x1, arc1.y1,
+        "A", r, r, 0, +(Math.abs(endAngle - startAngle) > 180), 0, arc1.x2, arc1.y2,
+        "Z"
+    ];
+    res.middle = {
+        x: (arc1.xm - arc2.xm) / 2 + arc2.xm,
+        y: (arc1.ym - arc2.ym) / 2 + arc2.ym
+    };
     return res;
+
 }
+
+
 
 function endAngle(endPercent){
-	return 360 * endPercent;
+	return (360 - 90) * endPercent;
 }
 
+
+var p,$meter,outer,inner,progress;
 $(function(){
 
 	p = Raphael('meter');
 	$meter = $('#meter');
 
 	var padding = 5;
-	var progressWidth = 20;
-	var percent = 0.75;
+	var progressWidth = 25;
+	var percent = .80;
 
-	var angles = {
-		'0': 0,
-		'100': 360
-	};
+
 
 	var cx = $meter.width() / 2;
 	var cy = $meter.height() / 2;
 	var R  =  (cy > cx) ? cx - padding : cy - padding;
 
 
-	outer = p.circle(cx,cy,R);
-	outer.attr({'stroke-width':0});
-	
-	var end = endAngle(percent);
-	var thearc = arc(cx,cy,R,0,end,progressWidth);
-	var progress = p.path(thearc).attr('fill',HWColor.primary.BLUE);
 
-	progress.transform("r45");
+	var end = endAngle(percent);
+
+
+    var theStartArc = getArcPath(cx,cy,R,0,5,progressWidth)
+	var thearc = getArcPath(cx,cy,R,0,end,progressWidth);
+
+	progress = p.path(theStartArc).attr('fill',HWColor.primary.BLUE);
+
+    var trans = [
+        "S", -1, 1, cx, cy,
+        "R", 45, cx, cy
+
+    ];
+    var transPosition = Raphael.parseTransformString(trans);
+
+	progress.transform(transPosition);
+
+
+
 	progress.attr('stroke-width',0);
 
-	inner = p.circle(cx,cy,R - progressWidth);
-	inner.attr({
-		fill:"#fff",
-		'stroke-width': 0.25,
-		'stroke':
-	});
 
-
+    $('#go').click(function(){
+        progress.animate({
+            'path': thearc
+        }, 350, '<');
+    });
 
 
 });
