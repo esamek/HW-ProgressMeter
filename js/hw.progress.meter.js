@@ -1,112 +1,374 @@
-var HWColor = HWColor || {};
-
-(function(c){c.primary = {}; c.primary.BLUE										="#0085ca"; c.primary.CHARCOAL									="#575a5d"; c.primary.GREEN										="#76c34d"; c.primary.SAND										="#edead6"; c.secondary = {}; c.secondary.RED										="#ea4648"; c.secondary.ORANGE									="#f5871e"; c.secondary.PINK									="#de1c85"; c.secondary.YELLOW									="#f9c031"; c.secondary.NAVY									="#004b77"; c.secondary.TEAL									="#00b2e9"; c.additional = {}; c.additional.DARKSAND								="#999999"; c.additional.LIGHTSAND								="#f7f4ec"; c.getPrimary = function(){var primes = []; for(var color in c.primary){primes.push({'name': color.toLowerCase(),'hex': c.primary[color]}); } return primes; }; c.getPrimaryHex = function(){var primes = []; for(var color in c.primary){primes.push(c.primary[color]); } return primes; }; c.getSecondary = function(){var secs = []; for(var color in c.secondary){secs.push({'name': color.toLowerCase(),'hex': c.secondary[color]}); } return secs; }; c.getSecondaryHex = function(){var secs = []; for(var color in c.secondary){secs.push(c.secondary[color]); } return secs; }; c.getAdditional = function(){var adds = []; for(var color in c.additional){add.push({'name': color.toLowerCase(),'hex': c.additional[color]}); } return adds; };})(HWColor);
 
 
+(function($){
 
-
-
-
-
-
-
-
-function getArcPath(cx,cy,r,startAngle,endAngle,progressWidth){
-
-    var rad = Math.PI / 180;
-
-    var arc1 = {
-        x1: cx + r * Math.cos(-startAngle * rad),
-        x2: cx + r * Math.cos(-endAngle * rad),
-        xm: cx + r / 2 * Math.cos(-(startAngle + (endAngle - startAngle) / 2) * rad),
-        y1: cy + r * Math.sin(-startAngle * rad),
-        y2: cy + r * Math.sin(-endAngle * rad),
-        ym: cy + r / 2 * Math.sin(-(startAngle + (endAngle - startAngle) / 2) * rad)
+    var defaultOptions = {
+        'type': 'progress', // meter or progress
+        'color': "#0085ca", // color of progress type
+        'padding': 5, // container padding
+        'progressWidth': 20, // progress stroke width
+        'endAngle': 270, // 100% angle
+        'startAngle': 0, // 0% angle
+        'valueMax' : 100,
+        'animationDelay': 500,
+        'animationDuration': 500,
+        'meterColors': ['red','yellow','green'], // bad -> ok -> good
+        'meterHandColor': '#404040',
+        'meterKnobColor': '#404040',
+        'meterKnobRadius': 10,
+        'animateIn': true, // animate progress IN
+        'animationEasing': 'bounce',
+        'transform': [ // rotate the meter
+                        "S", -1, -1, "cx", "cy",
+                        "R", -45, "cx", "cy"
+                    ]
     };
 
-    var r2 = r - progressWidth;
+    function ProgressMeter(el,value,options){
 
-    var arc2 = {
-        x1: cx + r2 * Math.cos(-startAngle * rad),
-        x2: cx + r2 * Math.cos(-endAngle * rad),
-        xm: cx + r2 / 2 * Math.cos(-(startAngle + (endAngle - startAngle) / 2) * rad),
-        y1: cy + r2 * Math.sin(-startAngle * rad),
-        y2: cy + r2 * Math.sin(-endAngle * rad),
-        ym: cy + r2 / 2 * Math.sin(-(startAngle + (endAngle - startAngle) / 2) * rad)
-    };
+        this.$el = $(el);
+        this._options = options || {};
+        this._value = value;
+        this.init();
 
-
-    var res = [
-        "M", arc1.x2, arc1.y2,
-        "L", arc2.x2, arc2.y2,
-        "A", r2, r2, 0, +(Math.abs(endAngle - startAngle) > 180), 1, arc2.x1, arc2.y1,
-        "L", arc1.x1, arc1.y1,
-        "A", r, r, 0, +(Math.abs(endAngle - startAngle) > 180), 0, arc1.x2, arc1.y2,
-        "Z"
-    ];
-    res.middle = {
-        x: (arc1.xm - arc2.xm) / 2 + arc2.xm,
-        y: (arc1.ym - arc2.ym) / 2 + arc2.ym
-    };
-    return res;
-
-}
+        return this;
+    }
 
 
+    var methods = {
 
-function endAngle(endPercent){
-	return (360 - 90) * endPercent;
-}
+        init: function(){
+            var that = this;
+
+            // combine paramter options with defaults
+            this.mergeOptions();
+
+            // create paper
+            this.paper = new Raphael(that.$el.get(0));
 
 
-var p,$meter,outer,inner,progress;
+            // define our custom arc function
+            // NOTE: have to specify at least one parameter for animation
+            this.paper.customAttributes.arc = function(v) {
+
+                var args = Array.prototype.slice.call(arguments);
+
+                var path =  that.arc.apply(that, arguments);
+                return this.attr(path);
+
+
+            };
+            // set cx
+            this.cx = this.$el.innerWidth() / 2;
+
+            // set cy
+            this.cy = this.$el.innerHeight() / 2;
+
+            // set R (radius) to fit container - padding - progress width
+            this.R = (that.cy > that.cx) ? that.cx - that.options.padding - that.options.progressWidth : that.cy - that.options.padding - that.options.progressWidth;
+
+            if(this.options.type == 'meter'){
+                this.drawMeter();
+            }else {
+                this.drawProgress();
+            }
+
+
+        },
+
+
+
+        drawMeter: function(){
+            var that        = this,
+                cx          = this.cx,
+                cy          = this.cy,
+                start       = this.options.startAngle,
+                end         = this.options.endAngle,
+                R           = this.R,
+                v           = this.options.valueMax * 0.99999, // reusing full 360 arc to get subpaths
+                t           = this.options.valueMax,
+                colors      = this.options.meterColors;
+            this.meter      = [];
+            this.progress   = this.paper.path().attr('arc',[v]); // temp store of progress
+            var totalLength = Raphael.getTotalLength(that.progress.attr('path')),
+                subLength   = totalLength / 3,
+                x           = 0,
+                color, _end, subPath, metee;
+
+
+
+
+            for(var i = 0; i < 3; i++){
+
+                color   = colors[i];
+                _end    = subLength * (i+1);
+                subPath = Raphael.getSubpath(that.progress.attr('path'), x, _end);
+                metee   = this.paper.path(subPath)
+                            .attr('stroke',color)
+                            .attr('stroke-width', that.options.progressWidth );
+
+                this.meter.push(metee);
+
+                x = _end;
+            }
+
+            this.progress.remove(); // remove temp progress
+            this.progress = null;
+
+            // apply transformation
+            if(this.options.transform){
+
+                var orig   = this.options.transform,
+                    edited = [];
+
+                for(var i = 0; i < orig.length; i++){
+                    if(orig[i] == "cx"){
+                        orig[i] = this.cx;
+                    }else if(orig[i] == "cy"){
+                        orig[i] = this.cy;
+                    }
+
+                    edited.push(orig[i]);
+                }
+
+
+                var trans = Raphael.parseTransformString(edited);
+
+
+                for(var i = 0; i < this.meter.length;i++){
+                    var p = this.meter[i];
+
+                    p.transform(trans);
+                }
+            }
+
+            this.drawMeterHand();
+        },
+
+
+        drawMeterHand: function(){
+
+            var that = this;
+
+            this.progress = [];
+
+            var dot = this.paper.circle(that.cx,that.cy, that.options.meterKnobRadius)
+                        .attr('fill',that.options.meterKnobColor);
+
+            var val        = this._value,
+                valueAngle = this.options.endAngle / this.options.valueMax * val,
+                valueDeg   = valueAngle * Math.PI / 180,
+                x          = this.getX(that.R,valueDeg,that.cx),
+                y          = this.getY(that.R,valueDeg,that.cy);
+
+
+            var pathString = [
+                ["M",that.cx,that.cy],
+                ["L", x, y]
+            ];
+
+            var line = this.paper.path(pathString);
+
+            line.attr('stroke-width', that.options.progressWidth / 5);
+            line.attr('stroke',that.options.meterHandColor);
+
+            if(this.options.transform){
+                var orig   = this.options.transform,
+                    edited = [];
+
+                for(var i = 0; i < orig.length; i++){
+                    if(orig[i] == "cx"){
+                        orig[i] = this.cx;
+                    }else if(orig[i] == "cy"){
+                        orig[i] = this.cy;
+                    }
+
+                    edited.push(orig[i]);
+                }
+
+
+                var trans = Raphael.parseTransformString(edited);
+
+                line.transform(trans);
+            }
+
+            this.progress.push(dot);
+            this.progress.push(line);
+
+
+
+        },
+
+        drawProgress: function(){
+
+            var that  = this,
+                v     = (this.options.animationDelay > 0) ? 1 : this._value,
+                t     = this.options.valueMax,
+                cx    = this.cx,
+                cy    = this.cy,
+                start = this.options.startAngle,
+                end   = this.options.endAngle,
+                R     = this.R;
+
+
+            var params = [v,t,R,cx,cy,start,end];
+
+
+            this.progress = this.paper.path()
+                            .attr('arc',params);
+
+            if(this.options.transform){
+
+                var orig   = this.options.transform,
+                    edited = [];
+
+                for(var i = 0; i < orig.length; i++){
+                    if(orig[i] == "cx"){
+                        orig[i] = this.cx;
+                    }else if(orig[i] == "cy"){
+                        orig[i] = this.cy;
+                    }
+
+                    edited.push(orig[i]);
+                }
+
+
+                var trans = Raphael.parseTransformString(edited);
+
+                this.progress.transform(trans);
+            }
+
+
+            this.progress.attr('stroke', that.options.color);
+            this.progress.attr('stroke-width', that.options.progressWidth);
+
+            if(this.options.animateIn){
+
+                var endValue = this._value,
+                    aniTime  = this.options.animationDuration,
+                    aniDelay = this.options.animationDelay,
+                    easing   = this.options.animationEasing;
+
+
+
+                this._animate(endValue,aniTime,aniDelay, easing);
+
+            }
+
+
+        },
+
+        _animate: function(endValue,aniTime,aniDelay, easing){
+            var that = this;
+
+                setTimeout(function(){
+
+                    that.progress.animate({
+                        'arc': endValue
+                    }, aniTime, easing);
+                }, aniDelay);
+
+
+        },
+
+        mergeOptions: function(){
+            var o = this._options;
+            this.options = $.extend(defaultOptions,o);
+        },
+
+        // Custom Arc Attr
+        arc: function(value){
+            var path,
+                that = this,
+                val = (this.options.animateIn ) ? value : this._value,
+                valueAngle = this.options.endAngle / this.options.valueMax * val,
+                valueDeg   = valueAngle * Math.PI / 180,
+                R = this.R,
+                cx = this.cx,
+                cy = this.cy,
+                startAngle = this.options.startAngle,
+
+                start      = {
+                    'x' : that.getX(R, startAngle, cx),
+                    'y' : that.getY(R, startAngle, cy)
+                },
+
+                end        = {
+                    'x' : that.getX(R, valueDeg, cx),
+                    'y' : that.getY(R, valueDeg, cy)
+                },
+
+                sweepFlag  = +(Math.abs(valueAngle - startAngle) > 180);
+
+                path = [
+                    ["M", start.x, start.y],
+                    ["A", R, R, 0, sweepFlag, 1, end.x, end.y]
+                ];
+
+
+
+
+            return {'path': path};
+        },
+
+
+        // get X from Radius, angle, and cx
+        getX: function(R,angle,cx){
+
+            var offset = (angle > 90 && angle < 270) ? cx * -1 : cx;
+            return R * Math.cos(angle) + cx;
+        },
+
+        // get Y from Radius, angle and cx
+        getY: function(R,angle,cy){
+            var offset = (angle > 180) ? cy : cy ;
+            return R * Math.sin(angle) + cy;
+        }
+
+
+
+
+    };//end methods
+
+
+
+    $.extend(ProgressMeter.prototype, methods);
+
+    $.fn.progressMeter = function(value,options){
+
+        return new ProgressMeter(this,value,options);
+    }
+
+
+
+})(jQuery);
+
+
+
+var it;
+
 $(function(){
 
-	p = Raphael('meter');
-	$meter = $('#meter');
+    it = $('#meter').progressMeter(90,{'type':'meter','progressWidth':50});
 
-	var padding = 5;
-	var progressWidth = 25;
-	var percent = .80;
+    it = $('#progress').progressMeter(55,{'type':'progress','progressWidth':50});
 
 
-
-	var cx = $meter.width() / 2;
-	var cy = $meter.height() / 2;
-	var R  =  (cy > cx) ? cx - padding : cy - padding;
-
-
-
-	var end = endAngle(percent);
-
-
-    var theStartArc = getArcPath(cx,cy,R,0,5,progressWidth)
-	var thearc = getArcPath(cx,cy,R,0,end,progressWidth);
-
-	progress = p.path(theStartArc).attr('fill',HWColor.primary.BLUE);
-
-    var trans = [
-        "S", -1, 1, cx, cy,
-        "R", 45, cx, cy
-
-    ];
-    var transPosition = Raphael.parseTransformString(trans);
-
-	progress.transform(transPosition);
-
-
-
-	progress.attr('stroke-width',0);
-
-
-    $('#go').click(function(){
-        progress.animate({
-            'path': thearc
-        }, 350, '<');
-    });
 
 
 });
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
