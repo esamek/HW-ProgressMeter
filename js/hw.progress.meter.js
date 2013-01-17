@@ -5,7 +5,7 @@
     var defaultOptions = {
         'type': 'progress', // meter or progress
         'color': "#0085ca", // color of progress type
-        'padding': 5, // container padding
+        'padding': 15, // container padding
         'progressWidth': 20, // progress stroke width
         'endAngle': 270, // 100% angle
         'startAngle': 0, // 0% angle
@@ -16,6 +16,10 @@
         'meterHandColor': '#404040',
         'meterKnobColor': '#404040',
         'meterKnobRadius': 10,
+        'middleText': function(v,max){
+            var percent = (v != 0) ? v / max * 100 : 0;
+            return percent.toPrecision(3);
+        },
         'animateIn': true, // animate progress IN
         'animationEasing': 'bounce',
         'transform': [ // rotate the meter
@@ -56,6 +60,14 @@
                 var path =  that.arc.apply(that, arguments);
                 return this.attr(path);
 
+
+            };
+
+            this.paper.customAttributes.value = function(v){
+
+                var value =  that.value(v,that.options.valueMax);
+
+                return this.attr(value);
 
             };
             // set cx
@@ -202,7 +214,7 @@
         drawProgress: function(){
 
             var that  = this,
-                v     = (this.options.animationDelay > 0) ? 1 : this._value,
+                v     = (this.options.animateIn > 0) ? 0 : this._value,
                 t     = this.options.valueMax,
                 cx    = this.cx,
                 cy    = this.cy,
@@ -244,21 +256,81 @@
 
             if(this.options.animateIn){
 
-                var endValue = this._value,
-                    aniTime  = this.options.animationDuration,
-                    aniDelay = this.options.animationDelay,
-                    easing   = this.options.animationEasing;
 
 
 
-                this._animate(endValue,aniTime,aniDelay, easing);
+
+
+
+            }
+
+            if(typeof this.options.middleText == "function"){
+                this.middle = {};
+
+                this.middle.behind = this.paper.circle(that.cx,that.cy,that.R - that.options.progressWidth / 2)
+                                        .attr('fill','#ddd')
+                                        .attr('stroke-width',0);
+
+                var format = this.options.middleText,
+                    t;
+
+                if(!this.options.animateIn){
+
+                    t = format(that._value,that.options.valueMax);
+
+                }else{
+                    t = format(0,that.options.valueMax);
+                }
+
+                this.middle.text = this.paper.text(that.cx,that.cy,"")
+                                        .attr({
+                                            'text-anchor': 'middle',
+                                            'font-size': that.getFontSize(),
+                                            'font-family':'Proxima Nova Condensed',
+                                            'fill': '#444',
+                                            'font-weight': 700,
+                                            'value': t
+                                        });
 
             }
 
 
+            var per = Math.floor(that._value / that.options.valueMax * 100);
+            var t = this.middle.text;
+            var col = that.options.meterColors;
+            var c;
+            if(per < 33){
+                c = col[0];
+            } else if (per < 66){
+                c = col[1];
+            } else {
+                c = col[2];
+            }
+
+            if(!this.options.animateIn){
+
+                t.attr('fill',c);
+            }else {
+                var endValue = this._value,
+                    aniTime  = this.options.animationDuration,
+                    aniDelay = this.options.animationDelay,
+                    easing   = this.options.animationEasing;
+                this._animate(endValue,aniTime,aniDelay, easing, c);
+            }
+
+
+
         },
 
-        _animate: function(endValue,aniTime,aniDelay, easing){
+        getFontSize: function(){
+            var R = this.R;
+            var area = Math.PI * Math.pow(R,2);
+            var arearoot = Math.pow(area, 0.5);
+            return  arearoot / 4;
+
+        },
+
+        _animate: function(endValue,aniTime,aniDelay, easing, c){
             var that = this;
 
                 setTimeout(function(){
@@ -266,6 +338,14 @@
                     that.progress.animate({
                         'arc': endValue
                     }, aniTime, easing);
+                    that.middle.text.animate({
+                        'value': endValue
+                    }, aniTime, easing, function(){
+                        that.middle.text.animate({
+                            'fill': Raphael.color(c)
+                        });
+                    }, 2200, easing);
+
                 }, aniDelay);
 
 
@@ -311,6 +391,14 @@
             return {'path': path};
         },
 
+        value: function(value){
+            var that = this;
+            var format = (typeof this.options.middleText == "function") ? this.options.middleText : function(v,a){return v;}
+            var v = format(value, that.options.valueMax);
+
+            return {'text': v};
+
+        },
 
         // get X from Radius, angle, and cx
         getX: function(R,angle,cx){
@@ -345,13 +433,13 @@
 
 
 
-var it;
+var it,it2;
 
 $(function(){
 
     it = $('#meter').progressMeter(90,{'type':'meter','progressWidth':50});
 
-    it = $('#progress').progressMeter(55,{'type':'progress','progressWidth':50});
+    it2 = $('#progress').progressMeter(80,{'type':'progress','progressWidth':50});
 
 
 
