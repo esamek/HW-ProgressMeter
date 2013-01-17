@@ -8,26 +8,30 @@ Options
 =================
 
     var defaultOptions = {
-          'type': 'progress', // meter or progress
-          'color': "#0085ca", // color of progress type
-          'padding': 5, // container padding
-          'progressWidth': 20, // progress stroke width
-          'endAngle': 270, // 100% angle
-          'startAngle': 0, // 0% angle
-          'valueMax' : 100,
-          'animationDelay': 500,
-          'animationDuration': 500,
-          'meterColors': ['red','yellow','green'], // bad -> ok -> good
-          'meterHandColor': '#404040',
-          'meterKnobColor': '#404040',
-          'meterKnobRadius': 10,
-          'animateIn': true, // animate progress IN
-          'animationEasing': 'bounce',
-          'transform': [ // rotate the meter
-                          "S", -1, -1, "cx", "cy",
-                          "R", -45, "cx", "cy"
-                      ]
-      };
+        'type': 'progress', // meter or progress
+        'color': "#0085ca", // color of progress type
+        'padding': 15, // container padding
+        'progressWidth': 20, // progress stroke width
+        'endAngle': 270, // 100% angle
+        'startAngle': 0, // 0% angle
+        'valueMax' : 100,
+        'animationDelay': 500,
+        'animationDuration': 500,
+        'meterColors': ['red','yellow','green'], // bad -> ok -> good
+        'meterHandColor': '#404040',
+        'meterKnobColor': '#404040',
+        'meterKnobRadius': 10,
+        'middleText': function(v,max){
+            var percent = (v != 0) ? v / max * 100 : 0;
+            return percent.toPrecision(3);
+        },
+        'animateIn': true, // animate progress IN
+        'animationEasing': 'bounce',
+        'transform': [ // rotate the meter
+                        "S", -1, -1, "cx", "cy",
+                        "R", -45, "cx", "cy"
+                    ]
+    };
 
 Usage
 =======
